@@ -1,6 +1,6 @@
 (ns on-lisp.chap15
   (:require
-    [on-lisp.utils :refer [mac atomp]]
+    [on-lisp.utils :refer [mac atomp mkcoll]]
     [on-lisp.chap05 :refer [lrec ttrav trec]]))
     
 ;;; 15 - Macros Returning Functions
@@ -168,3 +168,67 @@
 #_((atrec (or (left) (right)) 
           (and (odd? it) it))
    [0 2 [3 [5]]])
+
+(defmacro on-trees [rec base & trees]
+  `((atrec ~rec ~base) ~@trees))
+
+;;; Figure 15.6: Functions defined using `on-trees`
+
+(defn our-copy-tree [tree]
+  (on-trees (cons left right) it tree))
+
+(defn count-leaves [tree]
+  (on-trees (+ left (or right 1)) 1 tree))
+
+(defn our-flatten [tree]
+  (on-trees (concat left right) (mkcoll it) tree))
+
+(defn rfind-if [f tree]
+  (on-trees (or left right)
+            (and (f it) it)
+            tree))
+
+;;; ---------------------------------------------------------------------------
+;;; 15.3 Recursion on Subtrees
+
+;;; Figure 15.7: Implementation of `force` and `delay`
+
+(comment
+  "A delay is a placeholder for the value of some expression. It represents
+  a promise to deliver the value of the expression if it is needed at some 
+  later time."
+  "A delay is represented as a two-part structure. The first field indicates
+  whether the delay has been evaluated yet, and if it has, contains the value.
+  The second field contains a closure which can be called to find the value 
+  that the delay represents.")
+
+(def unforced (gensym))
+
+(defrecord Delay [forced closure])
+
+(defn delay-p [x]
+  (and (= (class x) clojure.lang.Atom)
+       (map? @x) 
+       (contains? @x :forced) 
+       (contains? @x :closure)))
+
+(defmacro delay* [expr]
+  (let [self (gensym)]
+    `(let [~self (atom (map->Delay {:forced unforced}))]
+       (swap! ~self assoc :closure
+         #(swap! ~self assoc :forced ~expr))
+       ~self)))
+
+(defn force* [x]
+  (if (delay-p x)
+    (if (= (:forced @x) unforced)
+      (do ((:closure @x))
+          (:forced @x))
+      (:forced @x))
+    x))
+
+#_
+(let [x 2]
+  (def d (delay*  (inc x))))
+#_
+(force* d)
