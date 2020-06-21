@@ -43,3 +43,33 @@
 #_
 (mac
   (abbrev summing +))
+
+;;; ---------------------------------------------------------------------------
+;;; 16.3 Anaphoric Macros
+
+(defn anaphex1 [args call]
+  (if (seq args)
+    (let [sym (gensym)]
+      `(let [~sym ~(first args)
+             it ~sym]
+         ~(anaphex1 (rest args)
+                    (concat call (list sym)))))
+    call))
+         
+(defn anaphex2 [op args]
+  `(let [it ~(first args)]
+     (~op ~'it ~@(rest args))))
+
+(defmacro defanaph [name & [{:keys [rule calls]}]]
+  (let [rule (or rule :all)
+        opname (or calls (-> name str first str symbol))
+        body (case rule
+               :all `(anaphex1 ~'args '(~opname))
+               :first `(anaphex2 '~opname ~'args))]
+    `(defmacro ~name [& ~'args]
+       ~body)))
+
+(mac
+  (defanaph alist))
+(mac 
+  (defanaph aif {:rule :first}))
