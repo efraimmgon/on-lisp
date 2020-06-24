@@ -5,9 +5,11 @@
   (and (seqable? x)
        (seq x)))
 
-; (atomp nil) => true
-(defn atomp [x]
+; (cl-atom nil) => true
+(defn cl-atom [x]
   (not (consp x)))
+
+(def atomp cl-atom)
 
 (defn member
   ([x coll]
@@ -188,3 +190,43 @@
 #_(remove (fn-by (or (and integer? odd?)
                      (and coll? next)))
           '[1 [a b] c [d] 2 3.4 [e f g]])
+
+
+(comment
+  "In the expansion of an acond clause, the result of the test expression
+  will initially be kept in a gensymed variable, in order that the symbol
+  `it` may be bound only within the remainder of the clause. When macros
+  create bindings, they should always do so over the narrowest possible
+  scope. Here, if we dispensed with the gensym and instead bound `it`
+  immediately to the result of the test expression, then that binding would
+  also have within its scope the following test expression.")
+
+(defmacro acond [& clauses]
+  (when (seq clauses)
+    (let [cl1 (take 2 clauses)]
+      `(let [tst# ~(first cl1)]
+          (if tst#
+            (let [~'it tst#]
+              ~(last cl1))
+            (acond ~@(drop 2 clauses)))))))
+             
+
+#_(mac
+    (acond false it
+           nil it
+           (+ 1 1) it))
+
+(defn unwrap [x]
+  (if (coll? x)
+    x
+    [x nil]))
+
+(defmacro acond2 [& clauses]
+  (when (seq clauses)
+    (let [val (gensym)
+          win (gensym)
+          it 'it]
+      `(let [[~val ~win] (unwrap ~(first clauses))]
+         (if (or ~val ~win)
+           (let [~it ~val] ~(second clauses))
+           (acond2 ~@(rest (rest clauses))))))))
