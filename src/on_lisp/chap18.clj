@@ -64,30 +64,40 @@
        (= \?
           (first (name x)))))
   
-(defn binding [x binds]
+(defn binding 
+  "Returns (if any) the bindings for `x`."
+  [x binds]
   (letfn [(recbind [x binds]
-            (when (seq binds)
-              (when-let [it (get binds x)]
-                (or (recbind it binds)
-                    it))))]
+            (when-let [it (get binds x)]
+              (or (recbind it binds)
+                  it)))]
     (let [b (recbind x binds)]
       b)))
 
-(defn match 
+(defn match
+  "Compares `x` and `y` element by element and builds up assingments of values
+  to variables (bindings), in the paramenter `binds`. If the match is 
+  successful, returns the bindings generated, otherwise returns `nil`." 
   ([x y]
    (match x y {}))
   ([x y binds]
    (acond
+     ;; If they're equal or it's the wildcard symbol, we just return the
+     ;; bindings.
      (or (= x y) (= x '_) (= y '_)) binds
      
+     ;; If there's a binding for x or y we run match with it.
      (binding x binds) (match it y binds)
      
      (binding y binds) (match x it binds)
      
+     ;; If either x or y is a variable, we assoc it with their match.
      (varsym? x) (assoc binds x y)
      
      (varsym? y) (assoc binds y x)
      
+     ;; If x and y are a coll we run match with the 1st elt, and with the next,
+     ;; if it's successful.
      (and (coll? x) (coll? y) 
           (match (first x) (first y) binds))
      (match (next x) (next y) it)
