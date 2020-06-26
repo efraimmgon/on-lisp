@@ -209,12 +209,25 @@
             (let [~'it tst#]
               ~(last cl1))
             (acond ~@(drop 2 clauses)))))))
-             
+
 
 #_(mac
     (acond false it
            nil it
-           (+ 1 1) it))
+           (+ 1 1) it))  
+
+(defmacro cond-let [& clauses]
+  (when (seq clauses)
+    `(let [~@(first clauses)
+           then# ~(second clauses)]
+       (if ~(ffirst clauses)
+         then#
+         (cond-let ~@(drop 2 clauses))))))
+
+#_
+(cond-let
+  [x (+ 1 1)] (list x x)
+  [y 1] (inc y))
 
 (defn unwrap [x]
   (if (coll? x)
