@@ -200,7 +200,7 @@
 
 
 ;;; ---------------------------------------------------------------------------
-;;; 19.5 A Query Compiler
+;;; 19.6 A Query Compiler
 
 ; TODO: fix pat-match
 
@@ -247,3 +247,27 @@
 (defmacro with-answer [query & body]
   `(with-gensyms [~@(vars-in query simple?)]
      ~(compile-query query `(do ~@body))))
+
+(comment "The first name and nationality of every painter called Hogarth")
+#_
+(with-answer (painter 'hogarth ?x ?y)
+  (pr (list ?x ?y)))
+
+(comment 
+  "The last name of every English painter not born in the same year as a 
+  Venatian painter")
+#_
+(with-answer (and (painter ?x _ 'english)
+                  (dates ?x ?b _)
+                  (not (and (painter ?x2 _ 'venetian)
+                            (dates ?x2 ?b _))))
+  (pr ?x))
+
+(comment
+  "The last name and year of death of every painter who died between 1770 and
+  1800 exclusive.")
+#_
+(with-answer (and (painter ?x _ _)
+                  (dates ?x _ ?d)
+                  (lisp (< 1770 ?x 1800)))
+  (pr (list ?x ?d)))
