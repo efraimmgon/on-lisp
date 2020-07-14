@@ -1,7 +1,8 @@
 (ns on-lisp.chap20
   (:require
     clojure.set
-    [on-lisp.utils :refer [mac]]))
+    [on-lisp.utils :refer [mac]]
+    [on-lisp.chap19 :refer [=defn =values]]))
 
 ;;; 21 - Multiple Processes
 
@@ -103,19 +104,7 @@
          (when (= ::halt (-> e# ex-data :cause))
            (loop []
              (pick-process)))))))
-
-
-(comment
-  "pick-process"
-  "Selects and runs the highest priority process which is able to restart.")
-
-(comment
-  "most-urgent-process"
-  "Selects the most urgent process.")
-
-(comment
-  "A suspended process is eligible to run if it has no `wait` function, or
-  its `wait` fucntion returns true.")
+  
 
 (comment
   "A `wait` is similar to an `=bind`, and carries the same restriction that
@@ -126,16 +115,58 @@
 
 ;;; Figure 21.2: Process scheduling.
 
-(defn kill [obj & args]
-  (if obj
-    (swap! *procs* #()))) 
-  
+(defn most-urgent-process 
+  "Selects the most urgent process."
+  []
+  (let [[proc max val]
+        (reduce
+          (fn [[proc1 max val1 :as acc] p]
+            (let [pri (:pri p)]
+              (if (> pri max)
+                ;; A suspended process is eligible to run if it has no `wait` 
+                ;; function, or its `wait` function returns true.
+                (let [val (or (not (:wait p))
+                              ((:wait p)))]
+                  (if val
+                    [p pri val]
+                    acc))
+                acc)))
+          [default-proc -1 true] @*procs*)]
+    [proc val]))
 
-(defn pick-process []
+(defn pick-process 
+  "Selects and runs the highest priority process which is able to restart."
+  []
   (let [[p val] (most-urgent-process)]
     (reset! *proc* p)
     (swap! *procs* #(remove #{p} %))
     ((:state p) val)))
+
+(defn kill 
+  ([] 
+   (kill nil))
+  ([f]
+   (if f
+     (swap! *procs* #(remove f %))
+     (pick-process))))
+
+(defn halt 
+  ([] 
+   (halt nil))
+  ([val]
+   (ex-info {:cause ::halt :val val})))
+
+(defn setpri [n]
+  (swap! *proc* assoc :pri n))
+
+(defn arbitrator [test cont]
+  (swap! *proc* assoc :state cont)
+  (swap! *proc* assoc :wait test)
+  (swap! *procs* conj @*proc*)
+  (pick-process))
+
+(defmacro yield [body]
+  `(arbitrator nil (fn [~(gensym)] ~@body)))
 
 
 (comment
