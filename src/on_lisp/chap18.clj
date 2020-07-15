@@ -197,124 +197,124 @@
 ;;; Figure 18.7 & 18.8: Fast matching operator.
 
 ;; buggy
-; (defn length-test [pat coll]
-;   (let [fin (first (last coll))]
-;     (if (or (coll? fin) (= (name fin) "nth"))
-;       `(= (count ~pat) ~(count coll))
-;       `(> (count ~pat) ~(- (count (partition 2 coll)) 2)))))
+(defn length-test [pat coll]
+  (let [fin (first (last coll))]
+    (if (or (coll? fin) (= (name fin) "nth"))
+      `(= (count ~pat) ~(count coll))
+      `(> (count ~pat) ~(- (count (partition 2 coll)) 2)))))
     
 
-; (defn gensym? [s]
-;   (and (symbol? s)
-;        (= "G__" (subs (name s) 0 3))))
+(defn gensym? [s]
+  (and (symbol? s)
+       (= "G__" (subs (name s) 0 3))))
 
-; (defn match1
-;   "If the pattern argument is a gensym, then it is one of the invisible
-;   variables created by `destruc` to hold sublists, and all we need to do
-;   at runtime is test that it has the right length.
-;   If the pattern element is a wildcard (_) no code need be generated.
-;   If the pattern element is a variable, we generate code to match it against,
-;   or set it to, the corresponding part of the sequence given at runtime.
-;   Otherwise, the pattern element is taken to be a literal value, and we 
-;   generate code to compare it with the corresponding part of the sequence."
-;   [refs then else]
-;   (let [[pat expr] (take 2 refs)
-;         more (drop 2 refs)]
-;     (cond
-;       (gensym? pat)
-;       `(let [~pat ~expr]
-;          (if (and (coll? ~pat)
-;                   ~(length-test pat more))
-;            ~then
-;            ~else))
+(defn match1
+  "If the pattern argument is a gensym, then it is one of the invisible
+  variables created by `destruc` to hold sublists, and all we need to do
+  at runtime is test that it has the right length.
+  If the pattern element is a wildcard (_) no code need be generated.
+  If the pattern element is a variable, we generate code to match it against,
+  or set it to, the corresponding part of the sequence given at runtime.
+  Otherwise, the pattern element is taken to be a literal value, and we 
+  generate code to compare it with the corresponding part of the sequence."
+  [refs then else]
+  (let [[pat expr] (take 2 refs)
+        more (drop 2 refs)]
+    (cond
+      (gensym? pat)
+      `(let [~pat ~expr]
+         (if (and (coll? ~pat)
+                  ~(length-test pat more))
+           ~then
+           ~else))
       
-;       (= pat '_) then
+      (= pat '_) then
       
-;       (var? pat)
-;       (let [ge (gensym)]
-;         `(let [~ge ~expr]
-;            (if (or (gensym? ~pat) (= ~pat ~ge))
-;              (let [~pat ~ge] ~then)
-;              ~else)))
+      (var? pat)
+      (let [ge (gensym)]
+        `(let [~ge ~expr]
+           (if (or (gensym? ~pat) (= ~pat ~ge))
+             (let [~pat ~ge] ~then)
+             ~else)))
       
-;       :else `(if (= ~pat ~expr) ~then ~else))))
+      :else `(if (= ~pat ~expr) ~then ~else))))
 
-; (comment
-;   "The distinction between pattern content and pattern structure will be
-;   defined by the function `simple?`. If we want to be able to use quoted
-;   literals in patterns, the destructuring code (and `vars-in`) have to be
-;   told not to go inside seqs whose first elements is `quote`. With the new
-;   matching operator, we will be able to use lists as pattern elements,
-;   simply by quoting them.")
+(comment
+  "The distinction between pattern content and pattern structure will be
+  defined by the function `simple?`. If we want to be able to use quoted
+  literals in patterns, the destructuring code (and `vars-in`) have to be
+  told not to go inside seqs whose first elements is `quote`. With the new
+  matching operator, we will be able to use lists as pattern elements,
+  simply by quoting them.")
 
 (defn simple? [x]
   (or (cl-atom x) 
       (= (first x) 'quote)))
 
-; (defn gen-match 
-;   "Recursively generates matching code for nested patterns, and thence to
-;   `match1`, which generates match code for each leaf of the pattern tree."
-;   [refs then else]
-;   (if-not (seq refs)
-;     then
-;     (let [then (gen-match (drop 2 refs) then else)]
-;       (if (simple? (first refs))
-;         (match1 refs then else)
-;         (gen-match (take 2 refs) then else)))))
+(defn gen-match 
+  "Recursively generates matching code for nested patterns, and thence to
+  `match1`, which generates match code for each leaf of the pattern tree."
+  [refs then else]
+  (if-not (seq refs)
+    then
+    (let [then (gen-match (drop 2 refs) then else)]
+      (if (simple? (first refs))
+        (match1 refs then else)
+        (gen-match (take 2 refs) then else)))))
 
-; (defmacro pat-match [pat seqn then else]
-;   (if (simple? pat)
-;     (match1 `(~pat ~seqn) then else)
-;     (let [gseq (gensym)
-;           gelse (gensym)]
-;       `(letfn [(~gelse [] ~else)]
-;          ~(gen-match (->> (destruc pat gseq simple?)
-;                           (concat (list gseq seqn)))
-;                      then
-;                      `(~gelse))))))
+(defmacro pat-match [pat seqn then else]
+  (if (simple? pat)
+    (match1 `(~pat ~seqn) then else)
+    (let [gseq (gensym)
+          gelse (gensym)]
+      `(letfn [(~gelse [] ~else)]
+         ~(gen-match (->> (destruc pat gseq simple?)
+                          (concat (list gseq seqn)))
+                     then
+                     `(~gelse))))))
 
-; (defmacro if-match 
-;   ([pat seqn then]
-;    (if-match pat seqn then nil))
-;   ([pat seqn then else]
-;    `(let [~@(mapcat (fn [v] 
-;                       `(~v '~(gensym)))
-;                     (vars-in pat simple?))]
-;       (pat-match ~pat ~seqn ~then ~else))))
+(defmacro if-match 
+  ([pat seqn then]
+   (if-match pat seqn then nil))
+  ([pat seqn then else]
+   `(let [~@(mapcat (fn [v] 
+                      `(~v '~(gensym)))
+                    (vars-in pat simple?))]
+      (pat-match ~pat ~seqn ~then ~else))))
       
                           
 
-; (comment
-;   "By restricting variables to the first argument of `if-match`, we make it
-;   possible to tell at compile-time which varibles will be involved in the
-;   match. Then instead of creating lists of variable bindings, we could 
-;   keep the values of variables in the variables themselves.")
+(comment
+  "By restricting variables to the first argument of `if-match`, we make it
+  possible to tell at compile-time which varibles will be involved in the
+  match. Then instead of creating lists of variable bindings, we could 
+  keep the values of variables in the variables themselves.")
 
-; ; pat-match
-; (comment 
-;   "Takes the same arguments as `if-match`; the only difference is
-;   that it establishes no new bindings for pattern variables. In some 
-;   situations this is an advantage.")
+; pat-match
+(comment 
+  "Takes the same arguments as `if-match`; the only difference is
+  that it establishes no new bindings for pattern variables. In some 
+  situations this is an advantage.")
 
-; #_
-; (if-match [?x 'a] seq
-;   (prn ?x)
-;   nil)
+#_
+(if-match [?x 'a] seq
+  (prn ?x)
+  nil)
 
-; #_(destruc '[?x 'a] 'g simple?)
-; #_(destruc '[a [b c] & d] 'seq)
+#_(destruc '[?x 'a] 'g simple?)
+#_(destruc '[a [b c] & d] 'seq)
 
-; (comment
-;   "In the new `if-match`, the pattern elements are now evaluated instead of
-;   being implicitly quoted. This means that Lisp variables can be used in
-;   patterns, as well as quoted expressions:")
-; #_
-; (let [n 3]
-;   (if-match [?x n 'n '[a b]] '[1 3 n [a b]]
-;     ?x))
+(comment
+  "In the new `if-match`, the pattern elements are now evaluated instead of
+  being implicitly quoted. This means that Lisp variables can be used in
+  patterns, as well as quoted expressions:")
+#_
+(let [n 3]
+  (if-match [?x n 'n '[a b]] '[1 3 n [a b]]
+    ?x))
 
-; (comment
-;   "The pattern can now contain rest (&) arguments.")
-; #_
-; (if-match [?x [1 & ?y] ?x] '[[a b] [1 2 3] [a b]]
-;   [?x ?y])
+(comment
+  "The pattern can now contain rest (&) arguments.")
+#_
+(if-match [?x [1 & ?y] ?x] '[[a b] [1 2 3] [a b]]
+  [?x ?y])
