@@ -287,3 +287,9 @@
 (program barbarians []
   (fork (capture 'rome) 100)
   (fork (plunder 'rome) 98))
+
+
+;;; ---------------------------------------------------------------------------
+;;; 21.3 The Less-than-Rapid Prototype
+
+
